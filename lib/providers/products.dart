@@ -1,9 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shopie/models/http_exception.dart';
 
 import 'product.dart';
 
 class Products with ChangeNotifier {
   List<Product> _items = [
+    /*
     Product(
       id: 'p1',
       title: 'Red Shirt',
@@ -39,7 +44,7 @@ class Products with ChangeNotifier {
       imageUrl:
           'https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Cast-Iron-Pan.jpg/1024px-Cast-Iron-Pan.jpg',
       isFavorite: false,
-    ),
+    ), */
   ];
 
   var _showFavoritesOnly = false;
@@ -70,22 +75,89 @@ class Products with ChangeNotifier {
     notifyListeners();
   }
 */
-  void addProduct(Product product) {
-    final newProduct = Product(
-        id: DateTime.now().toString(),
-        title: product.title,
-        description: product.description,
-        price: product.price,
-        imageUrl: product.imageUrl,
-        isFavorite: product.isFavorite);
 
-    _items.add(newProduct);
-    notifyListeners();
+  Future<void> fetchAndSetProducts() async {
+    var url = Uri.parse(
+        'https://shopie-d70d0-default-rtdb.firebaseio.com/products.json');
+    try {
+      final response = await http.get(url);
+      final extractedData = jsonDecode(response.body) as Map<String, dynamic>;
+      if (extractedData == null) {
+        return;
+      }
+      final List<Product> loadedProducts = [];
+      extractedData.forEach((prodId, prodData) {
+        loadedProducts.add(Product(
+          id: prodId,
+          title: prodData['title'],
+          description: prodData['description'],
+          price: prodData['price'],
+          imageUrl: prodData['imageUrl'],
+          isFavorite: prodData['isFavorite'],
+        ));
+      });
+      _items = loadedProducts;
+      notifyListeners();
+      //print(json.decode(response.body));
+    } catch (error) {
+      throw error;
+    }
   }
 
-  void updateProduct(String id, Product newProduct) {
+  Future<void> addProduct(Product product) async {
+    var url = Uri.parse(
+        'https://shopie-d70d0-default-rtdb.firebaseio.com/products.json');
+    try {
+      final response = await http.post(
+        url,
+        //headers: ,
+        body: json.encode({
+          'title': product.title,
+          'description': product.description,
+          'imageUrl': product.imageUrl,
+          'price': product.price,
+          'isFavorite': product.isFavorite
+        }),
+      );
+      print(json.decode(response.body));
+
+      final newProduct = Product(
+          id: json.decode(response.body)['name'],
+          title: product.title,
+          description: product.description,
+          price: product.price,
+          imageUrl: product.imageUrl,
+          isFavorite: product.isFavorite);
+
+      _items.add(newProduct);
+      notifyListeners();
+    } catch (error) {
+      print(error);
+      throw error;
+    }
+
+    //.then((response) {
+    //print(json.decode(response.body));
+
+    //}).catchError((error) {
+    //print(error);
+    //throw error;
+    //);
+  }
+
+  Future<void> updateProduct(String id, Product newProduct) async {
     final prodIndex = _items.indexWhere((prod) => prod.id == id);
     if (prodIndex >= 0) {
+      var url = Uri.parse(
+          'https://shopie-d70d0-default-rtdb.firebaseio.com/products/$id.json');
+      await http.patch(url,
+          body: json.encode({
+            'title': newProduct.title,
+            'description': newProduct.description,
+            'imageUrl': newProduct.imageUrl,
+            'price': newProduct.price
+          }));
+
       _items[prodIndex] = newProduct;
       notifyListeners();
     } else {
@@ -93,8 +165,25 @@ class Products with ChangeNotifier {
     }
   }
 
-  void deleteProduct(String id) {
-    _items.removeWhere((prod) => prod.id == id);
+  Future<void> deleteProduct(String id) async {
+    var url = Uri.parse(
+        'https://shopie-d70d0-default-rtdb.firebaseio.com/products/$id.json');
+    final existingProductIndex = _items.indexWhere((prod) => prod.id == id);
+    var existingProduct = _items[existingProductIndex];
+    _items.removeAt(existingProductIndex);
     notifyListeners();
+    final response = await http.delete(url).then((response) {
+      if (response.statusCode >= 400) {
+        _items.insert(existingProductIndex, existingProduct);
+        notifyListeners();
+        throw HttpException('Could not delete product');
+      }
+      print(response.statusCode);
+      existingProduct = Object as Product;
+    });
+    //_items.removeAt(existingProductIndex);
+    //notifyListeners();
+    //_items.removeWhere((prod) => prod.id == id);
+    //notifyListeners();
   }
 }
