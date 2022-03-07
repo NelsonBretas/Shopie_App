@@ -47,7 +47,11 @@ class Products with ChangeNotifier {
     ), */
   ];
 
-  var _showFavoritesOnly = false;
+  //var _showFavoritesOnly = false;
+  final String authtoken;
+  final String userId;
+
+  Products(this.authtoken, this._items, this.userId);
 
   List<Product> get items {
     //if (_showFavoritesOnly) {
@@ -78,13 +82,18 @@ class Products with ChangeNotifier {
 
   Future<void> fetchAndSetProducts() async {
     var url = Uri.parse(
-        'https://shopie-d70d0-default-rtdb.firebaseio.com/products.json');
+        'https://shopie-d70d0-default-rtdb.firebaseio.com/products.json?auth=$authtoken&orderBy="creatorId"&equalTo="$userId"');
     try {
       final response = await http.get(url);
       final extractedData = jsonDecode(response.body) as Map<String, dynamic>;
       if (extractedData == null) {
         return;
       }
+      url = Uri.parse(
+          'https://shopie-d70d0-default-rtdb.firebaseio.com/userFavorites/$userId.json?auth=$authtoken');
+      final favoriteResponse = await http.get(url);
+      final favoriteData = json.decode(favoriteResponse.body);
+
       final List<Product> loadedProducts = [];
       extractedData.forEach((prodId, prodData) {
         loadedProducts.add(Product(
@@ -93,7 +102,8 @@ class Products with ChangeNotifier {
           description: prodData['description'],
           price: prodData['price'],
           imageUrl: prodData['imageUrl'],
-          isFavorite: prodData['isFavorite'],
+          isFavorite:
+              favoriteData == null ? false : favoriteData[prodId] ?? false,
         ));
       });
       _items = loadedProducts;
@@ -106,7 +116,7 @@ class Products with ChangeNotifier {
 
   Future<void> addProduct(Product product) async {
     var url = Uri.parse(
-        'https://shopie-d70d0-default-rtdb.firebaseio.com/products.json');
+        'https://shopie-d70d0-default-rtdb.firebaseio.com/products.json?auth=$authtoken');
     try {
       final response = await http.post(
         url,
@@ -116,7 +126,8 @@ class Products with ChangeNotifier {
           'description': product.description,
           'imageUrl': product.imageUrl,
           'price': product.price,
-          'isFavorite': product.isFavorite
+          'isFavorite': product.isFavorite,
+          'creatorId': userId
         }),
       );
       print(json.decode(response.body));
@@ -149,13 +160,14 @@ class Products with ChangeNotifier {
     final prodIndex = _items.indexWhere((prod) => prod.id == id);
     if (prodIndex >= 0) {
       var url = Uri.parse(
-          'https://shopie-d70d0-default-rtdb.firebaseio.com/products/$id.json');
+          'https://shopie-d70d0-default-rtdb.firebaseio.com/products/$id.json?auth=$authtoken');
       await http.patch(url,
           body: json.encode({
             'title': newProduct.title,
             'description': newProduct.description,
             'imageUrl': newProduct.imageUrl,
-            'price': newProduct.price
+            'price': newProduct.price,
+            'creatorId': userId,
           }));
 
       _items[prodIndex] = newProduct;
@@ -167,7 +179,7 @@ class Products with ChangeNotifier {
 
   Future<void> deleteProduct(String id) async {
     var url = Uri.parse(
-        'https://shopie-d70d0-default-rtdb.firebaseio.com/products/$id.json');
+        'https://shopie-d70d0-default-rtdb.firebaseio.com/products/$id.json?auth=$authtoken');
     final existingProductIndex = _items.indexWhere((prod) => prod.id == id);
     var existingProduct = _items[existingProductIndex];
     _items.removeAt(existingProductIndex);

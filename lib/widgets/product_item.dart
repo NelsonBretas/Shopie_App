@@ -4,6 +4,8 @@ import 'package:shopie/providers/product.dart';
 import 'package:shopie/providers/cart.dart';
 import 'package:shopie/screens/product_detail_screen.dart';
 
+import '../providers/auth.dart';
+
 class ProductItem extends StatelessWidget {
   //final String id;
   //final String title;
@@ -15,6 +17,7 @@ class ProductItem extends StatelessWidget {
   Widget build(BuildContext context) {
     //final product = Provider.of<Product>(context);
     final cart = Provider.of<Cart>(context, listen: false);
+    final authData = Provider.of<Auth>(context, listen: false);
     return Consumer<Product>(
       builder: (ctx, product, child) => ClipRRect(
         borderRadius: BorderRadius.circular(10),
@@ -35,7 +38,7 @@ class ProductItem extends StatelessWidget {
                     ? Icons.favorite
                     : Icons.favorite_border),
                 onPressed: () {
-                  product.toggleFavoriteStatus();
+                  product.toggleFavoriteStatus(authData.token, authData.userId);
                 },
                 color: Theme.of(context).primaryColor),
             title: Text(
